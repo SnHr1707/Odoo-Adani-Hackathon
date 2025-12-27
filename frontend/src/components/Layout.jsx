@@ -3,9 +3,12 @@ import Sidebar from './Sidebar';
 
 const Layout = ({ children }) => {
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-odoo-bg">
+    <div className="flex h-screen w-screen bg-[#1a1a1a] overflow-hidden text-gray-100">
+      {/* Sidebar: Fixed width, full height */}
       <Sidebar />
-      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+      
+      {/* Main Content: Flex grow, scrolls independently */}
+      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative">
         {children}
       </main>
     </div>

@@ -7,14 +7,13 @@ import Layout from './components/Layout';
 import AuthLanding from './pages/Auth/AuthLanding';
 import Login from './pages/Auth/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
+import CalendarView from './pages/Calendar/CalendarView'; // Ensure this path is correct
 
 import EquipmentForm from './pages/Equipment/EquipmentForm';
 import EquipmentList from './pages/Equipment/EquipmentList';
 
 import RequestForm from './pages/Requests/RequestForm';
 import RequestList from './pages/Requests/RequestList';
-
-const CalendarView = () => <div className="p-8 text-white">Calendar (Coming Soon)</div>;
 
 const ProtectedRoute = () => {
   const { user } = useContext(AuthContext);
@@ -30,6 +29,7 @@ export default function App() {
           <Route path="/auth" element={<AuthLanding />} />
           <Route path="/auth/employee" element={<Login role="user" title="Employee Portal" />} />
           <Route path="/auth/technician" element={<Login role="technician" title="Technician Portal" />} />
+          <Route path="/calendar" element={<CalendarView />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Dashboard />} />
