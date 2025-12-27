@@ -74,7 +74,7 @@ Ensure the following are installed:
 ```bash
 git clone https://github.com/your-username/gearguard.git
 cd gearguard
-
+```
 ## 2️⃣ Backend Setup
 
 ```bash
@@ -96,5 +96,83 @@ python-jose[cryptography] passlib[bcrypt] email-validator
 
 # Run backend server
 python main.py
+```
 Backend runs at:
 http://0.0.0.0:8000
+
+
+## 3️⃣ Frontend Setup
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Frontend runs at:
+http://localhost:5173
+
+## 🗄️ Database Setup (Seed Data)
+
+To enable Teams, Categories, and auto-assignment logic, seed MongoDB manually.
+
+<b>Steps</b>
+
+1. Open MongoDB Compass
+2. Connect to:
+```bash
+mongodb://localhost:27017
+```
+
+3. Database name:```gearguard_db```
+
+(Created automatically after signup)
+
+<details> <summary><strong>📂 Click to expand Seed Data (JSON)</strong></summary>
+
+```
+
+📁 Categories Collection
+[
+  { "_id": { "$oid": "65e23a60a7e0e7a2c8f4d9c1" }, "name": "Computers" },
+  { "_id": { "$oid": "65e23a60a7e0e7a2c8f4d9c2" }, "name": "HVAC Systems" },
+  { "_id": { "$oid": "65e23a60a7e0e7a2c8f4d9c3" }, "name": "Vehicles" },
+  { "_id": { "$oid": "65e23a60a7e0e7a2c8f4d9c4" }, "name": "Production Machines" }
+]
+
+📁 Teams Collection
+[
+  {
+    "_id": { "$oid": "65e23a60a7e0e7a2c8f4d9d1" },
+    "name": "IT Support Team",
+    "category_ids": ["65e23a60a7e0e7a2c8f4d9c1"]
+  },
+  {
+    "_id": { "$oid": "65e23a60a7e0e7a2c8f4d9d4" },
+    "name": "Manufacturing Ops",
+    "category_ids": ["65e23a60a7e0e7a2c8f4d9c4"]
+  }
+]
+
+📁 WorkCenters Collection
+[
+  {
+    "name": "Assembly Line 1",
+    "code": "WC-ASM-001",
+    "tag": "Production",
+    "cost_per_hour": 150.0,
+    "capacity": 5.0,
+    "time_efficiency": 95.0,
+    "oee_target": 85.0
+  }
+]
+```
+</details>
+
+##  📝 License
+
+This project is licensed under the MIT License.
+You are free to use, modify, and distribute it.
