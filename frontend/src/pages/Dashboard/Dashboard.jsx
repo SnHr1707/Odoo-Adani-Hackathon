@@ -71,7 +71,9 @@ const Dashboard = () => {
                   <span className={`px-2 py-1 rounded text-xs border ${
                     req.stage === 'New' ? 'bg-blue-900/30 border-blue-800 text-blue-300' :
                     req.stage === 'In Progress' ? 'bg-yellow-900/30 border-yellow-800 text-yellow-300' :
-                    'bg-green-900/30 border-green-800 text-green-300'
+                    req.stage === 'Repaired' ? 'bg-green-900/30 border-green-800 text-green-300' :
+                    'bg-red-900/30 border-red-800 text-red-300'
+                    
                   }`}>{req.stage}</span>
                 </td>
               </tr>
