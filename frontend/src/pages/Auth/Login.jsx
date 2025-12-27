@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext, API } from '../../context/AuthContext';
-import { AlertCircle, AlertTriangle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 const Login = ({ role, title }) => {
   const { register, handleSubmit, formState: { errors } } = useForm();
@@ -15,7 +15,7 @@ const Login = ({ role, title }) => {
     setApiError('');
     try {
       if (isSignup) {
-        // Only role=user is created on signup as per instructions
+        // As per instructions, only role='user' is created on signup via this form
         await API.post('/auth/signup', { ...data, role: 'user' });
         setIsSignup(false);
         alert("Account created! Please log in.");
@@ -75,7 +75,7 @@ const Login = ({ role, title }) => {
                     minLength: { value: 9, message: "Length should be more than 8 characters" },
                     pattern: isSignup ? {
                         value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{9,}$/,
-                        message: "Must contain lowercase, uppercase, and special char"
+                        message: "Must contain lowercase, uppercase, and special character"
                     } : undefined
                 })} 
                 placeholder="Password" 

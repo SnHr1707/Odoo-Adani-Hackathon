@@ -7,13 +7,15 @@ import Layout from './components/Layout';
 import AuthLanding from './pages/Auth/AuthLanding';
 import Login from './pages/Auth/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
-import CalendarView from './pages/Calendar/CalendarView'; // Ensure this path is correct
 
 import EquipmentForm from './pages/Equipment/EquipmentForm';
 import EquipmentList from './pages/Equipment/EquipmentList';
 
 import RequestForm from './pages/Requests/RequestForm';
 import RequestList from './pages/Requests/RequestList';
+
+import CalendarView from './pages/Calendar/CalendarView'; // Dark mode calendar
+import MaintenanceTeamView from './pages/Teams/MaintenanceTeamView'; // NEW
 
 const ProtectedRoute = () => {
   const { user } = useContext(AuthContext);
@@ -26,11 +28,12 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Auth Routes */}
           <Route path="/auth" element={<AuthLanding />} />
           <Route path="/auth/employee" element={<Login role="user" title="Employee Portal" />} />
           <Route path="/auth/technician" element={<Login role="technician" title="Technician Portal" />} />
-          <Route path="/calendar" element={<CalendarView />} />
 
+          {/* Protected App Routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Dashboard />} />
             
@@ -42,6 +45,9 @@ export default function App() {
             <Route path="/requests" element={<RequestList />} />
             <Route path="/requests/:id" element={<RequestForm />} />
             
+            {/* Maintenance Teams Routes (NEW) */}
+            <Route path="/teams" element={<MaintenanceTeamView />} />
+
             <Route path="/calendar" element={<CalendarView />} />
           </Route>
         </Routes>

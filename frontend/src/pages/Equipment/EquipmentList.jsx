@@ -14,11 +14,11 @@ const EquipmentList = () => {
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
-    if(window.confirm("Are you sure? This will delete the equipment.")) {
+    if(window.confirm("Are you sure? This will delete the equipment and all associated maintenance requests.")) {
         try {
             await API.delete(`/equipment/${id}`);
             setData(data.filter(item => item.id !== id));
-        } catch (err) { alert("Error deleting"); }
+        } catch (err) { alert("Error deleting equipment."); console.error(err); }
     }
   };
 

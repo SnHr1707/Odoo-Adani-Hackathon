@@ -61,8 +61,6 @@ const CalendarView = () => {
       const clickedDate = new Date(day);
       clickedDate.setHours(hour, 0, 0, 0);
       
-      // FIXED: Use local format to prevent timezone shifts (e.g. 2pm staying 2pm)
-      // date-fns format "yyyy-MM-dd'T'HH:mm" matches <input type="datetime-local"> format
       const localDateString = format(clickedDate, "yyyy-MM-dd'T'HH:mm");
       
       navigate('/requests/new', { state: { prefillDate: localDateString } });
@@ -99,7 +97,6 @@ const CalendarView = () => {
             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> New</div>
             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> In Progress</div>
             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> Repaired</div>
-            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Scrap</div>
         </div>
       </div>
 
