@@ -8,16 +8,13 @@ import AuthLanding from './pages/Auth/AuthLanding';
 import Login from './pages/Auth/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
 
-// Equipment Pages
 import EquipmentForm from './pages/Equipment/EquipmentForm';
-import EquipmentList from './pages/Equipment/EquipmentList'; // NEW
+import EquipmentList from './pages/Equipment/EquipmentList';
 
-// Request Pages
 import RequestForm from './pages/Requests/RequestForm';
-import RequestList from './pages/Requests/RequestList'; // NEW
+import RequestList from './pages/Requests/RequestList';
 
-// Placeholder for Calendar (or use previous code)
-const CalendarView = () => <div className="p-8 text-white">Calendar View (Coming Soon)</div>;
+const CalendarView = () => <div className="p-8 text-white">Calendar (Coming Soon)</div>;
 
 const ProtectedRoute = () => {
   const { user } = useContext(AuthContext);
@@ -30,12 +27,10 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Auth Routes */}
           <Route path="/auth" element={<AuthLanding />} />
           <Route path="/auth/employee" element={<Login role="user" title="Employee Portal" />} />
           <Route path="/auth/technician" element={<Login role="technician" title="Technician Portal" />} />
 
-          {/* Protected App Routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Dashboard />} />
             

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { AuthContext, API } from '../../context/AuthContext';
+import { Calendar, CheckCircle, Clock } from 'lucide-react';
 
 const RequestForm = () => {
   const { id } = useParams();
@@ -10,34 +11,33 @@ const RequestForm = () => {
   const navigate = useNavigate();
   const [equipments, setEquipments] = useState([]);
 
-  // 1. FIXED: Set proper default values, including Date and User ID
+  // Check Role
+  const isTech = user?.role === 'technician';
+
   const { register, handleSubmit, watch, setValue, reset } = useForm({
     defaultValues: {
       stage: 'New',
       priority: 1,
-      created_by_name: user?.name || "Unknown",
-      created_by_id: user?.id || "", // Fix: Use user.id, not user.user_id
-      request_date: new Date().toISOString().split('T')[0], // Default to today
+      created_by_name: user?.name,
+      created_by_id: user?.id,
+      request_date: new Date().toISOString().split('T')[0],
       duration: 0,
-      type: "Corrective" // Default radio selection
+      type: "Corrective"
     }
   });
 
-  const stages = ["New", "In Progress", "Repaired", "Scrap"];
   const currentStage = watch("stage");
   const watchedEqId = watch("equipment_id");
+  const watchedScheduledDate = watch("scheduled_date");
 
   useEffect(() => {
-    // Load Equipments
     API.get('/equipment').then(res => setEquipments(res.data));
-    
-    // Load Request if editing
     if (!isNew) {
       API.get(`/requests/${id}`).then(res => reset(res.data));
     }
   }, [id, isNew, reset]);
 
-  // Auto-fill Logic: When Equipment is selected
+  // Auto-fill Logic
   useEffect(() => {
     if (isNew && watchedEqId) {
         const eq = equipments.find(e => e.id === watchedEqId);
@@ -46,194 +46,184 @@ const RequestForm = () => {
             setValue("maintenance_team", eq.maintenance_team);
         }
     }
-  }, [watchedEqId, isNew, equipments, setValue]);
+  }, [watchedEqId, isNew]);
 
-  // 2. FIXED: Payload Construction
   const onSubmit = async (data) => {
-    try {
-        // Explicitly format the payload to match Backend Pydantic models
-        const payload = {
-            subject: data.subject,
-            created_by_name: user.name,
-            created_by_id: user.id, // Ensure this exists
-            equipment_id: data.equipment_id,
-            category: data.category || "General", // Fallback if empty
-            maintenance_team: data.maintenance_team || "Internal Maintenance",
-            request_date: data.request_date,
-            type: data.type,
-            priority: parseInt(data.priority), // Convert String "1" to Int 1
-            technician_name: data.technician_name || null,
-            technician_id: data.technician_id || null,
-            scheduled_date: data.scheduled_date || null,
-            duration: parseFloat(data.duration || 0), // Convert String to Float
-            stage: data.stage,
-            notes: data.notes || ""
-        };
+    const payload = {
+        ...data,
+        priority: parseInt(data.priority),
+        duration: parseFloat(data.duration),
+    };
+    
+    // Safety: If user is creating, force stage to New
+    if (!isTech && isNew) {
+        payload.stage = "New";
+        payload.technician_id = null;
+        payload.scheduled_date = null;
+    }
 
+    try {
         if (isNew) {
             const res = await API.post('/requests', payload);
             navigate(`/requests/${res.data.id}`);
         } else {
             await API.put(`/requests/${id}`, payload);
-            alert("Request Updated Successfully");
+            alert("Updated Successfully");
         }
-    } catch (error) {
-        console.error("Submission Error:", error.response?.data);
-        alert(`Error: ${JSON.stringify(error.response?.data?.detail || "Check console")}`);
-    }
+    } catch (e) { alert("Error saving"); }
   };
 
-  const updateStage = async (s) => {
-      // Role Check
-      if (user.role === 'user' && s !== 'New') {
-          return alert("Only Technicians can change the stage.");
-      }
+  // --- TECHNICIAN ACTIONS ---
+  
+  const handleSchedule = async () => {
+      if (!watchedScheduledDate) return alert("Please select a date first");
       
-      setValue("stage", s);
+      setValue("stage", "In Progress");
+      setValue("technician_name", user.name);
+      setValue("technician_id", user.id);
       
-      // Auto-assign Technician if moving to "In Progress"
-      if (s === 'In Progress' && !watch('technician_id')) {
-          setValue('technician_name', user.name);
-          setValue('technician_id', user.id);
-      }
+      await API.put(`/requests/${id}`, {
+          stage: "In Progress",
+          technician_name: user.name,
+          technician_id: user.id,
+          scheduled_date: watchedScheduledDate
+      });
+      alert("Scheduled & Accepted!");
+  };
 
-      if(!isNew) {
-          // If we are editing, save the stage change immediately
-          await API.put(`/requests/${id}`, { 
-              stage: s,
-              technician_name: user.name,
-              technician_id: user.id 
-          });
-      }
+  const handleMarkRepaired = async () => {
+      setValue("stage", "Repaired");
+      await API.put(`/requests/${id}`, { stage: "Repaired" });
   };
 
   return (
     <div className="p-8 max-w-5xl mx-auto animate-fade-in">
-      {/* Navigation Breadcrumb */}
-      <div className="flex items-center text-sm text-gray-400 mb-4">
-        <span onClick={() => navigate('/requests')} className="cursor-pointer hover:text-white">Maintenance</span>
-        <span className="mx-2">/</span>
-        <span className="text-white font-bold">{watch("subject") || "New Request"}</span>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="text-sm text-gray-400">
+             <span onClick={() => navigate('/requests')} className="cursor-pointer hover:text-white">Maintenance</span>
+             <span className="mx-2">/</span>
+             <span className="text-white font-bold">{isNew ? "New Request" : watch("subject")}</span>
+        </div>
+        
+        {/* Status Badge */}
+        <div className={`px-4 py-1 rounded-full text-sm font-bold border ${
+            currentStage === 'New' ? 'bg-blue-900/30 text-blue-300 border-blue-800' :
+            currentStage === 'In Progress' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-800' :
+            'bg-green-900/30 text-green-300 border-green-800'
+        }`}>
+            {currentStage}
+        </div>
       </div>
 
       <div className="bg-odoo-card rounded-lg shadow-lg border border-odoo-border overflow-hidden">
-        {/* Status Bar Header */}
-        <div className="flex justify-between items-center p-2 bg-gray-800 border-b border-gray-700">
-            <button 
-                onClick={handleSubmit(onSubmit)} 
-                className="ml-4 bg-odoo-primary hover:bg-[#5d3b55] text-white text-sm px-6 py-1.5 rounded shadow transition-colors"
-            >
-                {isNew ? 'Create Request' : 'Save Changes'}
-            </button>
-            
-            {/* Stage Buttons */}
-            <div className="flex rounded-full overflow-hidden border border-gray-600 mr-2">
-                {stages.map(s => (
-                    <button 
-                        key={s} 
-                        type="button"
-                        onClick={() => updateStage(s)} 
-                        className={`px-4 py-1.5 text-sm font-medium transition-colors border-r border-gray-600 last:border-0 ${
-                            currentStage === s 
-                            ? 'bg-odoo-secondary text-white' 
-                            : 'bg-[#2a2a2a] text-gray-400 hover:bg-gray-700'
-                        }`}
-                    >
-                        {s}
+        
+        {/* ACTION BAR (Dynamic based on Role) */}
+        <div className="p-4 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
+            <div>
+                {/* Save Button (Always visible) */}
+                <button onClick={handleSubmit(onSubmit)} className="bg-odoo-primary hover:bg-[#5d3b55] text-white px-6 py-1.5 rounded mr-4">
+                    {isNew ? 'Create Request' : 'Save Changes'}
+                </button>
+
+                {/* Technician Actions */}
+                {!isNew && isTech && currentStage === 'New' && (
+                    <button onClick={handleSchedule} className="bg-odoo-secondary hover:bg-teal-700 text-white px-4 py-1.5 rounded flex items-center gap-2 inline-flex">
+                        <Calendar size={16}/> Accept & Schedule
                     </button>
+                )}
+                {!isNew && isTech && currentStage === 'In Progress' && (
+                     <button onClick={handleMarkRepaired} className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded flex items-center gap-2 inline-flex">
+                        <CheckCircle size={16}/> Mark Repaired
+                    </button>
+                )}
+            </div>
+            
+            {/* Visual Steps */}
+            <div className="flex text-xs text-gray-400 gap-1">
+                {["New", "In Progress", "Repaired"].map((s, i) => (
+                    <div key={s} className={`px-3 py-1 rounded ${currentStage===s ? 'bg-gray-200 text-black font-bold' : 'bg-gray-700'}`}>
+                        {s}
+                    </div>
                 ))}
             </div>
         </div>
 
-        {/* Form Body */}
         <div className="p-8">
-            <div className="mb-8">
-                 <input 
-                    {...register("subject", { required: true })} 
-                    className="text-3xl bg-transparent border-none outline-none text-white font-bold w-full placeholder-gray-600" 
-                    placeholder="Subject (e.g. Leaking Oil)..." 
-                 />
-            </div>
+            <input 
+                {...register("subject")} 
+                disabled={!isNew && !isTech && user.id !== watch("created_by_id")} // Only creator or Tech can edit subject
+                className="text-3xl bg-transparent border-none outline-none text-white font-bold w-full mb-8 placeholder-gray-600" 
+                placeholder="Subject..." 
+            />
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 text-sm">
-                {/* Left Column */}
+            <div className="grid grid-cols-2 gap-12 text-sm">
                 <div className="space-y-6">
                     <div>
                         <label className="odoo-label">Equipment</label>
-                        <select 
-                            {...register("equipment_id", { required: true })} 
-                            disabled={!isNew} 
-                            className="odoo-input bg-[#2a2a2a] p-2 rounded"
-                        >
+                        <select {...register("equipment_id")} disabled={!isNew} className="odoo-input bg-[#2a2a2a] p-2 rounded">
                             <option value="">Select Equipment...</option>
-                            {equipments.map(e => (
-                                <option key={e.id} value={e.id}>{e.name} ({e.serial_number})</option>
-                            ))}
+                            {equipments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                         </select>
                     </div>
-                    
-                    <div>
-                        <label className="odoo-label">Request Date</label>
-                        <input type="date" {...register("request_date")} className="odoo-input" />
-                    </div>
-
                     <div>
                         <label className="odoo-label">Type</label>
                         <div className="flex gap-4 mt-2">
-                             <label className="flex items-center text-gray-300 cursor-pointer">
-                                <input type="radio" value="Corrective" {...register("type")} className="mr-2 accent-odoo-secondary"/> 
-                                Corrective
-                             </label>
-                             <label className="flex items-center text-gray-300 cursor-pointer">
-                                <input type="radio" value="Preventive" {...register("type")} className="mr-2 accent-odoo-secondary"/> 
-                                Preventive
-                             </label>
+                             <label><input type="radio" value="Corrective" {...register("type")} disabled={!isNew} className="mr-2"/> Corrective</label>
+                             <label><input type="radio" value="Preventive" {...register("type")} disabled={!isNew} className="mr-2"/> Preventive</label>
                         </div>
                     </div>
+                     <div>
+                        <label className="odoo-label">Created By</label>
+                        <input {...register("created_by_name")} disabled className="odoo-input text-gray-500" />
+                     </div>
                 </div>
 
-                {/* Right Column */}
-                <div className="space-y-6">
-                     <div>
-                        <label className="odoo-label">Maintenance Team</label>
-                        <input {...register("maintenance_team")} className="odoo-input text-gray-300" readOnly />
-                     </div>
+                <div className="space-y-6 bg-gray-800/30 p-4 rounded border border-gray-700/50">
+                     <h3 className="text-odoo-secondary font-bold uppercase text-xs mb-2 flex items-center gap-2">
+                        <Clock size={14}/> Technician Zone
+                     </h3>
                      
                      <div>
-                        <label className="odoo-label">Technician</label>
-                        <input {...register("technician_name")} className="odoo-input text-gray-400" placeholder="Unassigned" readOnly />
+                        <label className="odoo-label">Assigned Technician</label>
+                        <input {...register("technician_name")} disabled className="odoo-input text-gray-400" placeholder="Waiting for assignment..." />
                      </div>
-                     
+
                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="odoo-label">Scheduled Date</label>
-                            <input type="datetime-local" {...register("scheduled_date")} className="odoo-input" />
+                            <label className="odoo-label text-odoo-secondary">Scheduled Date</label>
+                            <input 
+                                type="datetime-local" 
+                                {...register("scheduled_date")} 
+                                disabled={!isTech} 
+                                className={`odoo-input ${!isTech ? 'text-gray-500' : 'bg-gray-800'}`} 
+                            />
                         </div>
                         <div>
-                            <label className="odoo-label">Duration (Hours)</label>
-                            <input type="number" step="0.5" {...register("duration")} className="odoo-input" />
+                            <label className="odoo-label">Duration (Hrs)</label>
+                            <input 
+                                type="number" step="0.5" 
+                                {...register("duration")} 
+                                disabled={!isTech}
+                                className="odoo-input" 
+                            />
                         </div>
                      </div>
 
                      <div>
                         <label className="odoo-label">Priority</label>
-                        <select {...register("priority")} className="odoo-input bg-[#2a2a2a] p-2 rounded">
-                            <option value="1">★ Low</option>
-                            <option value="2">★★ Medium</option>
-                            <option value="3">★★★ High</option>
+                        <select {...register("priority")} disabled={!isTech} className="odoo-input bg-[#2a2a2a] p-2 rounded">
+                            <option value="1">Low</option>
+                            <option value="2">Medium</option>
+                            <option value="3">High</option>
                         </select>
                     </div>
                 </div>
             </div>
-
-            {/* Notes Section */}
-            <div className="mt-8 border-t border-gray-700 pt-6">
-                <label className="odoo-label mb-2 block">Description / Notes</label>
-                <textarea 
-                    {...register("notes")} 
-                    className="w-full bg-[#1f1f1f] p-4 rounded border border-gray-700 focus:border-odoo-primary outline-none h-32 text-gray-300 transition-colors" 
-                    placeholder="Add details..." 
-                />
+            
+            <div className="mt-8 pt-6 border-t border-gray-700">
+                <label className="odoo-label mb-2">Notes</label>
+                <textarea {...register("notes")} className="w-full bg-[#1f1f1f] p-4 rounded border border-gray-700 outline-none h-24 text-gray-300" placeholder="Internal notes..."/>
             </div>
         </div>
       </div>
