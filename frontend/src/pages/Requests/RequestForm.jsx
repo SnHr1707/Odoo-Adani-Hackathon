@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { AuthContext, API } from '../../context/AuthContext';
 import { Calendar, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
@@ -9,19 +9,26 @@ const RequestForm = () => {
   const isNew = !id || id === 'new';
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation(); // Required for reading Calendar data
   const [equipments, setEquipments] = useState([]);
-  
-  // Check Role
+
+  // Check Role safely
   const isTech = user?.role === 'technician';
 
-  const { register, handleSubmit, watch, setValue, reset, getValues } = useForm({
+  // Get pre-filled date safely
+  const prefillDate = location.state?.prefillDate;
+
+  const { register, handleSubmit, watch, setValue, reset, getValues, formState: { errors } } = useForm({
     defaultValues: {
       stage: 'New',
       priority: 1,
-      created_by_name: user?.name,
-      created_by_id: user?.id,
-      request_date: new Date().toISOString().split('T')[0], // Default today
-      scheduled_date: "", // Default empty
+      // Safety check: ensure user exists before accessing name
+      created_by_name: user?.name || "Unknown",
+      created_by_id: user?.id || "",
+      // If prefill exists, use it (YYYY-MM-DD), else today
+      request_date: prefillDate ? prefillDate.split('T')[0] : new Date().toISOString().split('T')[0],
+      // If Tech clicked calendar, pre-fill scheduled datetime
+      scheduled_date: isTech && prefillDate ? prefillDate : "", 
       duration: 0,
       type: "Corrective"
     }
@@ -32,29 +39,40 @@ const RequestForm = () => {
   const watchedScheduledDate = watch("scheduled_date");
 
   useEffect(() => {
-    API.get('/equipment').then(res => setEquipments(res.data));
+    // Fetch Equipment List
+    API.get('/equipment')
+      .then(res => setEquipments(res.data || [])) // Ensure it's always an array
+      .catch(err => console.error("Eq Load Error", err));
+
+    // Fetch Request Data if editing
     if (!isNew) {
-      API.get(`/requests/${id}`).then(res => reset(res.data));
+      API.get(`/requests/${id}`)
+        .then(res => reset(res.data))
+        .catch(err => console.error("Req Load Error", err));
     }
   }, [id, isNew, reset]);
 
   // Auto-fill Logic
   useEffect(() => {
-    if (isNew && watchedEqId) {
+    if (isNew && watchedEqId && equipments.length > 0) {
         const eq = equipments.find(e => e.id === watchedEqId);
         if (eq) {
             setValue("category", eq.category);
             setValue("maintenance_team", eq.maintenance_team);
         }
     }
-  }, [watchedEqId, isNew]);
+  }, [watchedEqId, isNew, equipments, setValue]);
 
   const onSubmit = async (data) => {
     const payload = {
         ...data,
         priority: parseInt(data.priority),
         duration: parseFloat(data.duration),
+        created_by_name: user?.name, // Ensure user name is fresh
+        created_by_id: user?.id,
     };
+
+    // Force stage 'New' for users creating new requests
     if (!isTech && isNew) {
         payload.stage = "New";
     }
@@ -67,8 +85,12 @@ const RequestForm = () => {
             await API.put(`/requests/${id}`, payload);
             alert("Updated Successfully");
         }
-    } catch (e) { alert("Error saving"); }
+    } catch (e) { 
+        alert("Error saving: " + (e.response?.data?.detail || "Unknown error")); 
+    }
   };
+
+  // --- ACTIONS ---
 
   const handleSchedule = async () => {
       if (!watchedScheduledDate) return alert("Please set a Scheduled Date first.");
@@ -96,7 +118,7 @@ const RequestForm = () => {
       if (!reason) return; 
 
       const currentNotes = getValues("notes") || "";
-      const newNotes = `${currentNotes}\n\n[SCRAPPED by ${user.name} on ${new Date().toLocaleDateString()}]: ${reason}`;
+      const newNotes = `${currentNotes}\n\n[SCRAPPED by ${user?.name} on ${new Date().toLocaleDateString()}]: ${reason}`;
       
       setValue("stage", "Scrap");
       setValue("notes", newNotes);
@@ -107,6 +129,8 @@ const RequestForm = () => {
       });
       alert("Request marked as Scrapped.");
   };
+
+  if (!user) return <div className="p-8 text-white">Loading User Profile...</div>;
 
   return (
     <div className="p-8 max-w-5xl mx-auto animate-fade-in text-white">
@@ -136,7 +160,6 @@ const RequestForm = () => {
                     {isNew ? 'Create Request' : 'Save Changes'}
                 </button>
 
-                {/* Technician Buttons */}
                 {!isNew && isTech && currentStage === 'New' && (
                     <button onClick={handleSchedule} className="bg-odoo-secondary hover:bg-teal-700 text-white px-4 py-1.5 rounded flex items-center gap-2 shadow">
                         <Calendar size={16}/> Accept & Schedule
@@ -157,11 +180,12 @@ const RequestForm = () => {
 
         <div className="p-8">
             <input 
-                {...register("subject")} 
+                {...register("subject", { required: "Subject is required" })} 
                 disabled={!isNew && !isTech && user.id !== watch("created_by_id")}
-                className="text-3xl bg-transparent border-none outline-none text-white font-bold w-full mb-8 placeholder-gray-600 focus:ring-0" 
+                className={`text-3xl bg-transparent border-none outline-none text-white font-bold w-full mb-2 placeholder-gray-600 focus:ring-0 ${errors.subject ? 'border-b border-red-500' : ''}`} 
                 placeholder="Subject (e.g. Printer Overheating)..." 
             />
+            {errors.subject && <div className="text-red-500 text-sm mb-6">{errors.subject.message}</div>}
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 text-sm">
                 
@@ -169,11 +193,10 @@ const RequestForm = () => {
                 <div className="space-y-6">
                     <div>
                         <label className="odoo-label">Equipment</label>
-                        {/* FIX: Dark Background for Select */}
                         <select 
-                            {...register("equipment_id")} 
+                            {...register("equipment_id", { required: "Equipment is required" })} 
                             disabled={!isNew} 
-                            className="odoo-input bg-[#2a2a2a] text-white border border-[#444] p-2 rounded focus:border-odoo-primary"
+                            className={`odoo-input bg-[#2a2a2a] text-white border border-[#444] p-2 rounded focus:border-odoo-primary ${errors.equipment_id ? 'border-red-500' : ''}`}
                         >
                             <option value="" className="bg-[#2a2a2a] text-gray-500">Select Equipment...</option>
                             {equipments.map(e => (
@@ -182,19 +205,31 @@ const RequestForm = () => {
                                 </option>
                             ))}
                         </select>
+                        {errors.equipment_id && <span className="text-red-500 text-xs">{errors.equipment_id.message}</span>}
                     </div>
                     
                     <div>
-                        {/* NEW: Requested Date (For User) */}
                         <label className="odoo-label">Requested Date</label>
                         <input 
                             type="date" 
-                            {...register("request_date")} 
-                            // User can edit this when creating
+                            {...register("request_date", { 
+                                required: "Requested Date is required",
+                                validate: (value) => {
+                                    // User cannot select past dates for NEW requests
+                                    if(isNew) {
+                                        const selected = new Date(value);
+                                        const today = new Date();
+                                        today.setHours(0,0,0,0);
+                                        if(selected < today) return "Cannot select a past date";
+                                    }
+                                    return true;
+                                }
+                            })} 
                             disabled={!isNew && !isTech} 
-                            className="odoo-input bg-[#2a2a2a] border border-[#444] p-2 rounded"
+                            className={`odoo-input bg-[#2a2a2a] border border-[#444] p-2 rounded ${errors.request_date ? 'border-red-500' : ''}`}
                         />
                         <p className="text-[10px] text-gray-500 mt-1">Date you prefer the maintenance to happen.</p>
+                        {errors.request_date && <span className="text-red-500 text-xs block">{errors.request_date.message}</span>}
                     </div>
 
                     <div>
@@ -208,6 +243,10 @@ const RequestForm = () => {
                              </label>
                         </div>
                     </div>
+                     <div>
+                        <label className="odoo-label">Created By</label>
+                        <input {...register("created_by_name")} disabled className="odoo-input text-gray-500" />
+                     </div>
                 </div>
 
                 {/* --- RIGHT COLUMN: TECH / SCHEDULING --- */}
@@ -223,15 +262,13 @@ const RequestForm = () => {
 
                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                            {/* NEW: Scheduled Date (For Tech) */}
                             <label className="odoo-label text-odoo-secondary">Scheduled Date</label>
                             <input 
                                 type="datetime-local" 
                                 {...register("scheduled_date")} 
-                                disabled={!isTech} // Only Tech can confirm schedule
+                                disabled={!isTech} 
                                 className={`odoo-input border border-[#444] p-2 rounded ${isTech ? 'bg-[#1f1f1f] text-white' : 'bg-[#222] text-gray-500'}`} 
                             />
-                            {isTech && <p className="text-[10px] text-gray-500 mt-1">Set this to confirm appointment.</p>}
                         </div>
                         <div>
                             <label className="odoo-label">Duration (Hrs)</label>

@@ -1,8 +1,9 @@
+import re
 from fastapi import FastAPI, HTTPException, Body, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List, Any
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 from datetime import datetime
 from passlib.context import CryptContext
 from bson import ObjectId
@@ -27,9 +28,7 @@ db = client[DB_NAME]
 # --- HELPERS ---
 def fix_id(doc):
     if doc:
-        # Convert _id to string id
         doc["id"] = str(doc.pop("_id"))
-        # Recursively fix nested ObjectIds just in case
         for k, v in doc.items():
             if isinstance(v, ObjectId):
                 doc[k] = str(v)
@@ -61,10 +60,6 @@ class Equipment(BaseModel):
     maintenance_team: str = "Internal Maintenance"
     status: str = "Active"
     location: Optional[str] = None
-    scrap_date: Optional[str] = None # Added field
-    work_center: Optional[str] = None # Added field
-    description: Optional[str] = None # Added field
-    assigned_date: Optional[str] = None # Added field
 
 class Request(BaseModel):
     subject: str
@@ -83,12 +78,25 @@ class Request(BaseModel):
     stage: str = "New"
     notes: Optional[str] = ""
 
-# --- ROUTES ---
+# --- AUTH ROUTES ---
 
 @app.post("/auth/signup")
 async def signup(user: User):
+    # 1. Check Duplicate Email
     if await db.users.find_one({"email": user.email}):
-        raise HTTPException(400, "Email exists")
+        raise HTTPException(400, "Email already exists")
+    
+    # 2. STRICT Password Validation
+    pwd = user.password
+    if len(pwd) <= 8:
+        raise HTTPException(400, "Password must be more than 8 characters.")
+    if not re.search(r"[a-z]", pwd):
+        raise HTTPException(400, "Password must contain a lowercase letter.")
+    if not re.search(r"[A-Z]", pwd):
+        raise HTTPException(400, "Password must contain an uppercase letter.")
+    if not re.search(r"[\W_]", pwd):
+        raise HTTPException(400, "Password must contain a special character (@, #, $, etc).")
+
     u = user.dict()
     u["password"] = get_hash(u["password"])
     res = await db.users.insert_one(u)
@@ -97,11 +105,15 @@ async def signup(user: User):
 @app.post("/auth/login")
 async def login(creds: Login):
     u = await db.users.find_one({"email": creds.email})
-    if not u or not verify_password(creds.password, u["password"]):
-        raise HTTPException(401, "Invalid credentials")
+    if not u:
+        raise HTTPException(404, "Account does not exist")
+    if not verify_password(creds.password, u["password"]):
+        raise HTTPException(401, "Invalid Password")
+        
     return {"user": {"id": str(u["_id"]), "name": u["name"], "role": u.get("role", "user")}}
 
-# EQUIPMENT
+# --- EQUIPMENT ROUTES ---
+
 @app.get("/equipment")
 async def list_equipment():
     cursor = db.equipment.find({})
@@ -121,32 +133,31 @@ async def get_eq(id: str):
     data["request_count"] = await db.requests.count_documents({"equipment_id": id})
     return data
 
-# REQUESTS
+@app.delete("/equipment/{id}")
+async def delete_equipment(id: str):
+    if not ObjectId.is_valid(id): raise HTTPException(400, "Invalid ID")
+    res = await db.equipment.delete_one({"_id": ObjectId(id)})
+    if res.deleted_count == 0: raise HTTPException(404, "Equipment not found")
+    # Optional: Delete associated requests?
+    await db.requests.delete_many({"equipment_id": id})
+    return {"status": "deleted"}
+
+# --- REQUEST ROUTES ---
+
 @app.get("/requests")
 async def list_requests():
     pipeline = [
-        # Convert string equipment_id to ObjectId for lookup
         {"$addFields": {"eqId": {"$toObjectId": "$equipment_id"}}},
-        {"$lookup": {
-            "from": "equipment",
-            "localField": "eqId",
-            "foreignField": "_id",
-            "as": "eq"
-        }},
+        {"$lookup": {"from": "equipment", "localField": "eqId", "foreignField": "_id", "as": "eq"}},
         {"$unwind": {"path": "$eq", "preserveNullAndEmptyArrays": True}} 
     ]
     cursor = db.requests.aggregate(pipeline)
     res = []
     for doc in await cursor.to_list(100):
-        d = fix_id(doc) # Fixes root _id
-        
-        # FIX: Extract name and REMOVE the 'eq' object which contains ObjectId
-        eq_data = d.pop("eq", {}) 
+        d = fix_id(doc)
+        eq_data = d.pop("eq", {})
         d["equipment_name"] = eq_data.get("name", "Unknown/Deleted")
-        
-        # Cleanup temporary field
-        d.pop("eqId", None) 
-        
+        d.pop("eqId", None)
         res.append(d)
     return res
 
@@ -161,21 +172,14 @@ async def get_request(id: str):
     req = await db.requests.find_one({"_id": ObjectId(id)})
     if not req: raise HTTPException(404)
     data = fix_id(req)
-    
-    # Fetch equipment name separately
     if ObjectId.is_valid(req.get("equipment_id")):
         eq = await db.equipment.find_one({"_id": ObjectId(req["equipment_id"])})
         data["equipment_name"] = eq["name"] if eq else "Unknown"
-    else:
-        data["equipment_name"] = "Unknown"
-        
     return data
 
 @app.put("/requests/{id}")
 async def update_request(id: str, update: dict = Body(...)):
     if not ObjectId.is_valid(id): raise HTTPException(400, "Invalid ID")
-    
-    # Scrap Logic
     if update.get("stage") == "Scrap":
         req = await db.requests.find_one({"_id": ObjectId(id)})
         if req:
@@ -183,17 +187,14 @@ async def update_request(id: str, update: dict = Body(...)):
                 {"_id": ObjectId(req["equipment_id"])},
                 {"$set": {"status": "Scrapped", "scrap_date": datetime.now().strftime("%Y-%m-%d")}}
             )
-            
     await db.requests.update_one({"_id": ObjectId(id)}, {"$set": update})
     return {"status": "updated"}
 
 @app.delete("/requests/{id}")
 async def delete_request(id: str):
     if not ObjectId.is_valid(id): raise HTTPException(400, "Invalid ID")
-    result = await db.requests.delete_one({"_id": ObjectId(id)})
-    if result.deleted_count == 1:
-        return {"status": "deleted"}
-    raise HTTPException(404, "Request not found")
+    await db.requests.delete_one({"_id": ObjectId(id)})
+    return {"status": "deleted"}
 
 if __name__ == "__main__":
     import uvicorn
