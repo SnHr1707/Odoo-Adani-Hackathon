@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-odoo-bg text-odoo-text;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Dark Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #242424; }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #714B67; }
+
+/* Reusable Odoo Classes */
+.odoo-input {
+  @apply w-full bg-transparent border-b border-gray-600 focus:border-odoo-primary outline-none py-1 transition-colors text-white;
+}
+.odoo-label {
+  @apply block text-xs font-bold text-odoo-primary mb-1 uppercase tracking-wide;
+}
