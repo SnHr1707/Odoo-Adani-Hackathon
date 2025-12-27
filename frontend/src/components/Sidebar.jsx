@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Wrench, Search, Calendar as CalIcon, LogOut, Users as TeamsIcon } from 'lucide-react'; // Import TeamsIcon
+// Import Factory icon
+import { LayoutDashboard, Wrench, Search, Calendar as CalIcon, LogOut, Users as TeamsIcon, Factory } from 'lucide-react'; 
 import { AuthContext } from '../context/AuthContext';
 
 const Sidebar = () => {
@@ -11,7 +12,8 @@ const Sidebar = () => {
     { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
     { name: 'Maintenance', icon: Wrench, path: '/requests' },
     { name: 'Equipment', icon: Search, path: '/equipment' },
-    { name: 'Teams', icon: TeamsIcon, path: '/teams' }, // NEW TAB
+    { name: 'Work Centers', icon: Factory, path: '/work-centers' }, // <--- NEW ITEM
+    { name: 'Teams', icon: TeamsIcon, path: '/teams' },
     { name: 'Calendar', icon: CalIcon, path: '/calendar' },
   ];
 

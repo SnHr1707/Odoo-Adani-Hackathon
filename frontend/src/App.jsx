@@ -14,8 +14,9 @@ import EquipmentList from './pages/Equipment/EquipmentList';
 import RequestForm from './pages/Requests/RequestForm';
 import RequestList from './pages/Requests/RequestList';
 
-import CalendarView from './pages/Calendar/CalendarView'; // Dark mode calendar
-import MaintenanceTeamView from './pages/Teams/MaintenanceTeamView'; // NEW
+import CalendarView from './pages/Calendar/CalendarView'; 
+import MaintenanceTeamView from './pages/Teams/MaintenanceTeamView'; 
+import WorkCenterView from './pages/WorkCenters/WorkCenterView'; // <--- NEW IMPORT
 
 const ProtectedRoute = () => {
   const { user } = useContext(AuthContext);
@@ -45,8 +46,9 @@ export default function App() {
             <Route path="/requests" element={<RequestList />} />
             <Route path="/requests/:id" element={<RequestForm />} />
             
-            {/* Maintenance Teams Routes (NEW) */}
+            {/* Teams & Work Centers */}
             <Route path="/teams" element={<MaintenanceTeamView />} />
+            <Route path="/work-centers" element={<WorkCenterView />} /> {/* <--- NEW ROUTE */}
 
             <Route path="/calendar" element={<CalendarView />} />
           </Route>
